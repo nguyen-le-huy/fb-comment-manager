@@ -27,7 +27,7 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
       clientID: appId,
       clientSecret: appSecret,
       callbackURL: callbackUrl,
-      scope: ['email', 'pages_show_list', 'pages_read_engagement', 'pages_manage_engagement'],
+      scope: ['email', 'pages_show_list', 'pages_read_engagement', 'pages_manage_engagement', 'pages_manage_metadata'],
       profileFields: ['id', 'displayName', 'photos', 'email'],
     });
   }

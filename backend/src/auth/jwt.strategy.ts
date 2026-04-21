@@ -54,6 +54,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     }
 
     return {
+      userId: user._id.toString(),
       id: user._id.toString(),
       facebookId: user.facebookId,
       name: user.name,

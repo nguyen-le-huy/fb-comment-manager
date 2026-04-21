@@ -25,11 +25,9 @@ const showReplyForm = ref(false)
 
 const comment = computed(() => inboxStore.selectedComment)
 
-watch(() => comment.value?.commentId, (newId) => {
-  if (newId) {
-    showReplyForm.value = true
-  }
-}, { immediate: true })
+watch(() => comment.value?.commentId, () => {
+  showReplyForm.value = false
+})
 
 async function handleReplySubmit(message: string): Promise<void> {
   if (!comment.value) return
@@ -38,7 +36,7 @@ async function handleReplySubmit(message: string): Promise<void> {
 }
 
 async function handleMarkRead(): Promise<void> {
-  if (!comment.value) return
+  if (!comment.value || comment.value.isRead) return
   await markAsRead(comment.value.commentId)
 }
 
@@ -60,6 +58,10 @@ function formatTime(dateStr: string): string {
 
 const avatarFallback = computed(() => {
   return comment.value?.author.name.charAt(0).toUpperCase() ?? '?'
+})
+
+const hasCommentText = computed(() => {
+  return Boolean(comment.value?.message.trim())
 })
 </script>
 
@@ -193,8 +195,29 @@ const avatarFallback = computed(() => {
 
           <!-- Comment bubble -->
           <div class="ml-12 bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-3">
-            <p class="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
+            <img
+              v-if="comment.attachment?.imageUrl"
+              :src="comment.attachment.imageUrl"
+              alt="Comment attachment"
+              class="w-full max-w-sm rounded-lg border border-slate-200 bg-white object-cover mb-3"
+            />
+            <a
+              v-else-if="comment.attachment?.url"
+              :href="comment.attachment.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex text-sm text-indigo-600 hover:text-indigo-800 font-medium mb-3"
+            >
+              Mở tệp đính kèm
+            </a>
+            <p v-if="hasCommentText" class="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
               {{ comment.message }}
+            </p>
+            <p
+              v-else-if="!comment.attachment?.imageUrl && !comment.attachment?.url"
+              class="text-sm text-slate-500 italic"
+            >
+              Không có nội dung văn bản
             </p>
           </div>
         </div>

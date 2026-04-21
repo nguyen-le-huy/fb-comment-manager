@@ -17,6 +17,8 @@ export interface FbPost {
   id: string;
   message?: string;
   story?: string;
+  permalink_url?: string;
+  full_picture?: string;
   created_time: string;
   comments?: { summary: { total_count: number } };
 }
@@ -32,9 +34,31 @@ export interface FbPostsResponse {
 
 export interface FbComment {
   id: string;
-  from?: { id: string; name: string };
-  message: string;
+  from?: {
+    id: string;
+    name: string;
+    picture?: {
+      data?: {
+        url?: string;
+      };
+    };
+  };
+  message?: string;
   created_time: string;
+  attachment?: {
+    type?: string;
+    url?: string;
+    title?: string;
+    description?: string;
+    target?: {
+      url?: string;
+    };
+    media?: {
+      image?: {
+        src?: string;
+      };
+    };
+  };
   comments?: { data: FbComment[] };
 }
 
@@ -44,6 +68,11 @@ export interface FbCommentsResponse {
     cursors?: { before: string; after: string };
     next?: string;
   };
+}
+
+export interface FbSubscribedApp {
+  id: string;
+  name?: string;
 }
 
 const GRAPH_API_BASE_URL = 'https://graph.facebook.com';
@@ -57,6 +86,7 @@ export class GraphApiService {
   constructor() {
     this.http = axios.create({
       baseURL: GRAPH_API_BASE_URL + '/' + GRAPH_API_VERSION,
+      timeout: 30_000, // 30s — tránh treo request vô thời hạn
     });
   }
 
@@ -86,7 +116,7 @@ export class GraphApiService {
     try {
       const params: Record<string, string | number> = {
         access_token: pageAccessToken,
-        fields: 'id,message,story,created_time,comments.summary(true)',
+        fields: 'id,message,story,permalink_url,full_picture,created_time,comments.summary(true)',
         limit,
       };
       if (after) params['after'] = after;
@@ -109,7 +139,8 @@ export class GraphApiService {
     try {
       const params: Record<string, string | number> = {
         access_token: pageAccessToken,
-        fields: 'id,from,message,created_time,comments{id,from,message,created_time}',
+        fields:
+          'id,from{id,name,picture{url}},message,created_time,attachment{type,url,title,description,target,media},comments{id,from{id,name,picture{url}},message,created_time,attachment{type,url,title,description,target,media}}',
         limit,
       };
       if (after) params['after'] = after;
@@ -152,13 +183,67 @@ export class GraphApiService {
       const response = await this.http.get<FbComment>('/' + commentId, {
         params: {
           access_token: pageAccessToken,
-          fields: 'id,from,message,created_time',
+          fields: 'id,from{id,name,picture{url}},message,created_time,attachment{type,url,title,description,target,media}',
         },
       });
       return response.data;
     } catch (error) {
       this.logger.error('Failed to fetch comment', (error as Error).stack);
       throw new InternalServerErrorException('Could not fetch comment from Facebook');
+    }
+  }
+
+  async subscribeAppToPage(pageId: string, pageAccessToken: string): Promise<boolean> {
+    this.logger.log('Subscribing app to page webhooks', { pageId });
+    try {
+      const response = await this.http.post<{ success: boolean }>(
+        '/' + pageId + '/subscribed_apps',
+        null,
+        {
+          params: {
+            access_token: pageAccessToken,
+            subscribed_fields: 'feed',
+          },
+        },
+      );
+      return response.data.success;
+    } catch (error) {
+      const responseData = axios.isAxiosError(error)
+        ? JSON.stringify(error.response?.data ?? {})
+        : '{}';
+      this.logger.error(
+        `Failed to subscribe app to page ${pageId}. Response: ${responseData}`,
+        (error as Error).stack,
+      );
+      return false; // Don't throw to prevent login failure if this fails
+    }
+  }
+
+  async getSubscribedApps(
+    pageId: string,
+    pageAccessToken: string,
+  ): Promise<FbSubscribedApp[]> {
+    this.logger.log('Checking subscribed apps for page', { pageId });
+    try {
+      const response = await this.http.get<{ data: FbSubscribedApp[] }>(
+        '/' + pageId + '/subscribed_apps',
+        {
+          params: {
+            access_token: pageAccessToken,
+          },
+        },
+      );
+
+      return response.data.data ?? [];
+    } catch (error) {
+      const responseData = axios.isAxiosError(error)
+        ? JSON.stringify(error.response?.data ?? {})
+        : '{}';
+      this.logger.error(
+        `Failed to check subscribed apps for page ${pageId}. Response: ${responseData}`,
+        (error as Error).stack,
+      );
+      return [];
     }
   }
 }

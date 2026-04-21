@@ -23,17 +23,18 @@ export class CommentStateService {
       { $set: { isRead: true, readAt: new Date() } },
     );
 
-    // Emit read events for each updated comment
-    const updatedStates = await this.commentStateModel
-      .find({ commentId: { $in: commentIds } })
-      .select('commentId postId')
-      .lean();
+    if (result.modifiedCount > 0) {
+      const updatedStates = await this.commentStateModel
+        .find({ commentId: { $in: commentIds }, isRead: true })
+        .select('commentId postId')
+        .lean();
 
-    for (const state of updatedStates) {
-      this.fbEventsGateway.emitCommentRead({
-        postId: state.postId,
-        commentId: state.commentId,
-      });
+      for (const state of updatedStates) {
+        this.fbEventsGateway.emitCommentRead({
+          postId: state.postId,
+          commentId: state.commentId,
+        });
+      }
     }
 
     return { modifiedCount: result.modifiedCount };

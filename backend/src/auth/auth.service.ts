@@ -109,6 +109,16 @@ export class AuthService {
       )
       .select('_id')
       .lean();
+
+    // Tự động subscribe app vào Fanpage để nhận webhook cho comment mới
+    const subscribed = await this.graphApiService.subscribeAppToPage(
+      page.id,
+      page.access_token,
+    );
+
+    if (!subscribed) {
+      this.logger.warn(`Failed to subscribe webhook for page ${page.id}`);
+    }
   }
 
   issueJwt(user: AuthenticatedUser): AuthTokenResponse {

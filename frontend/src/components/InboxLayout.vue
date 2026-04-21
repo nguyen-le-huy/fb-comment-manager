@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useInboxComments } from '@/composables/useInboxComments'
+import { useSocket } from '@/composables/useSocket'
 import { useInboxStore } from '@/stores/inbox.store'
 import CommentList from './CommentList.vue'
 import CommentDetail from './CommentDetail.vue'
@@ -8,6 +9,8 @@ import CommentDetail from './CommentDetail.vue'
 const inboxStore = useInboxStore()
 const { fetchComments, isLoading } = useInboxComments()
 const showDetail = ref(false)
+
+useSocket()
 
 onMounted(() => {
   fetchComments()

@@ -46,8 +46,19 @@ export class FbEventsGateway
     pageId: string;
     postId: string;
     commentId: string;
-    fromName: string;
+    author: {
+      id: string;
+      name: string;
+      avatar?: string;
+    };
     message: string;
+    attachment?: {
+      type?: string;
+      imageUrl?: string;
+      url?: string;
+      title?: string;
+      description?: string;
+    };
     createdTime: string;
   }): void {
     this.logger.log('Emitting comment:new for post ' + payload.postId);

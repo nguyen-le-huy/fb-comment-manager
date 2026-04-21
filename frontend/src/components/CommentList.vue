@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useInboxStore } from '@/stores/inbox.store'
 import { useInboxFiltersStore } from '@/stores/inbox-filters.store'
+import { useInboxComments } from '@/composables/useInboxComments'
 import CommentListItem from './CommentListItem.vue'
 import { SearchIcon, SlidersHorizontalIcon, ArrowUpDownIcon, MessageSquareOffIcon } from 'lucide-vue-next'
 
@@ -20,11 +21,24 @@ const emit = defineEmits<Emits>()
 
 const inboxStore = useInboxStore()
 const filtersStore = useInboxFiltersStore()
+const { markAsRead } = useInboxComments()
 const searchInput = ref('')
 
 function handleSelect(commentId: string): void {
+  const targetComment = inboxStore.comments.find((comment) => comment.commentId === commentId)
+  const shouldSyncReadState = Boolean(targetComment && !targetComment.isRead)
+
   inboxStore.selectComment(commentId)
   emit('comment-selected', commentId)
+
+  if (shouldSyncReadState) {
+    void markAsRead(commentId)
+  }
+}
+
+function handleMarkRead(commentId: string): void {
+  inboxStore.markCommentAsRead(commentId)
+  void markAsRead(commentId)
 }
 
 const filteredComments = computed(() => {
@@ -224,7 +238,7 @@ const filterLabel = computed(() => {
           :key="comment.commentId"
           :comment="comment"
           @select="handleSelect(comment.commentId)"
-          @mark-read="inboxStore.markCommentAsRead(comment.commentId)"
+          @mark-read="handleMarkRead(comment.commentId)"
         />
       </div>
     </div>

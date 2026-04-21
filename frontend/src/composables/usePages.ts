@@ -5,17 +5,17 @@ import type { FbPage } from '@/types/page.types'
 
 interface UsePagesResult {
   pages: Ref<FbPage[]>
-  isLoading: Ref<boolean>
+  isPagesLoading: Ref<boolean>
   fetchPages: () => Promise<void>
 }
 
 export function usePages(): UsePagesResult {
   const pages = ref<FbPage[]>([])
-  const isLoading = ref(false)
+  const isPagesLoading = ref(false)
   const { toast } = useToast()
 
   async function fetchPages(): Promise<void> {
-    isLoading.value = true
+    isPagesLoading.value = true
     try {
       const data = await apiService.get<FbPage[]>('/facebook/pages')
       pages.value = data
@@ -26,9 +26,9 @@ export function usePages(): UsePagesResult {
         variant: 'destructive',
       })
     } finally {
-      isLoading.value = false
+      isPagesLoading.value = false
     }
   }
 
-  return { pages, isLoading, fetchPages }
+  return { pages, isPagesLoading, fetchPages }
 }

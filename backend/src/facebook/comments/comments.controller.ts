@@ -18,6 +18,9 @@ import {
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { CommentsService, CommentWithState } from './comments.service';
 import { ReplyCommentDto } from './dto/reply-comment.dto';
+import { InboxCommentDto } from './dto/inbox-comment.dto';
+import { GetInboxQueryDto } from './dto/get-inbox-query.dto';
+import { GetUser, AuthUser } from '../../auth/decorators/get-user.decorator';
 
 @ApiTags('facebook/comments')
 @ApiBearerAuth()
@@ -25,6 +28,17 @@ import { ReplyCommentDto } from './dto/reply-comment.dto';
 @Controller('facebook/comments')
 export class CommentsController {
   constructor(private readonly commentsService: CommentsService) {}
+
+  @Get('inbox')
+  @ApiOperation({ summary: 'Get all comments across all managed pages (inbox view)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({ status: 200, description: 'Returns flat list of comments sorted by time' })
+  getInbox(
+    @GetUser() user: AuthUser,
+    @Query() query: GetInboxQueryDto,
+  ): Promise<InboxCommentDto[]> {
+    return this.commentsService.getInboxComments(user.userId, query.limit ?? 20);
+  }
 
   @Get(':pageId/:postId')
   @ApiOperation({ summary: 'Get all comments for a post (merged with read state)' })

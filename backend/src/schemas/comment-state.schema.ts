@@ -37,4 +37,5 @@ export const CommentStateSchema = SchemaFactory.createForClass(CommentState);
 
 // Compound index for efficient unread queries per page/post
 CommentStateSchema.index({ pageId: 1, postId: 1 });
-CommentStateSchema.index({ commentId: 1 }, { unique: true });
+// Index for getUnreadCount query: filter by pageId + isRead
+CommentStateSchema.index({ pageId: 1, isRead: 1 });

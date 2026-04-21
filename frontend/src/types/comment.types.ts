@@ -19,6 +19,14 @@ export interface SourcePost {
   title?: string
 }
 
+export interface CommentAttachment {
+  type?: string
+  imageUrl?: string
+  url?: string
+  title?: string
+  description?: string
+}
+
 export interface Comment {
   commentId: string
   pageId: string
@@ -27,6 +35,7 @@ export interface Comment {
   page: FacebookPage
   post: SourcePost
   message: string
+  attachment?: CommentAttachment
   createdTime: string
   isRead: boolean
   readAt?: string
@@ -58,5 +67,6 @@ export interface NewCommentPayload {
   pageId: string
   author: CommentAuthor
   message: string
+  attachment?: CommentAttachment
   createdTime: string
 }

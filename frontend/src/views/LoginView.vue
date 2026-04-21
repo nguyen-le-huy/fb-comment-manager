@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { LayoutDashboardIcon, EyeIcon, EyeOffIcon, CheckIcon } from 'lucide-vue-next'
+import { LayoutDashboardIcon, EyeIcon, CheckIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'

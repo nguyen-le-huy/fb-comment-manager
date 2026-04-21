@@ -24,6 +24,18 @@ const isSelected = computed(
 )
 
 const previewText = computed(() => {
+  if (!props.comment.message.trim()) {
+    if (props.comment.attachment?.imageUrl) {
+      return 'Đã gửi ảnh'
+    }
+
+    if (props.comment.attachment?.url) {
+      return 'Đã gửi tệp đính kèm'
+    }
+
+    return 'Không có nội dung văn bản'
+  }
+
   return props.comment.message.length > 75
     ? props.comment.message.substring(0, 75) + '…'
     : props.comment.message

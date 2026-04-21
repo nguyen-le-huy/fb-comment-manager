@@ -119,8 +119,21 @@ export class WebhookService {
         pageId,
         postId,
         commentId,
-        fromName: comment.from?.name ?? 'Unknown',
-        message: comment.message,
+        author: {
+          id: comment.from?.id ?? '',
+          name: comment.from?.name ?? 'Unknown',
+          avatar: comment.from?.picture?.data?.url,
+        },
+        message: comment.message ?? '',
+        attachment: comment.attachment
+          ? {
+              type: comment.attachment.type,
+              imageUrl: comment.attachment.media?.image?.src,
+              url: comment.attachment.url ?? comment.attachment.target?.url,
+              title: comment.attachment.title,
+              description: comment.attachment.description,
+            }
+          : undefined,
         createdTime: createdTime.toISOString(),
       });
     } catch (error) {
