@@ -10,6 +10,20 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppConfig } from '../config/configuration';
 
+export interface CommentRepliedPayload {
+  commentId: string;
+  pageId: string;
+  reply: {
+    replyId: string;
+    author: {
+      id: string;
+      name: string;
+    };
+    message: string;
+    createdTime: string;
+  };
+}
+
 @WebSocketGateway({
   cors: {
     origin: (_origin: string, callback: (err: Error | null, allow?: boolean) => void) => {
@@ -68,5 +82,10 @@ export class FbEventsGateway
   emitCommentRead(payload: { postId: string; commentId: string }): void {
     this.logger.log('Emitting comment:read for comment ' + payload.commentId);
     this.server.emit('comment:read', payload);
+  }
+
+  emitCommentReplied(payload: CommentRepliedPayload): void {
+    this.logger.log('Emitting comment:replied for comment ' + payload.commentId);
+    this.server.emit('comment:replied', payload);
   }
 }

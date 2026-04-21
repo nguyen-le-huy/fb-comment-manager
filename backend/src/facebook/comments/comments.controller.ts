@@ -66,13 +66,16 @@ export class CommentsController {
   @ApiOperation({ summary: 'Reply to a comment on behalf of the page' })
   @ApiParam({ name: 'pageId', description: 'Facebook Page ID' })
   @ApiParam({ name: 'commentId', description: 'Comment ID to reply to' })
-  @ApiResponse({ status: 201, description: 'Reply posted successfully' })
+  @ApiResponse({
+    status: 201,
+    description: 'Reply posted — returns { id, commentId, pageId }',
+  })
   @ApiResponse({ status: 404, description: 'Page not found' })
   replyToComment(
     @Param('pageId') pageId: string,
     @Param('commentId') commentId: string,
     @Body() dto: ReplyCommentDto,
-  ): Promise<{ id: string }> {
+  ): Promise<{ id: string; commentId: string; pageId: string }> {
     return this.commentsService.replyToComment(pageId, commentId, dto.message);
   }
 }

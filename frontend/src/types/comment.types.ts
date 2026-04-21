@@ -70,3 +70,15 @@ export interface NewCommentPayload {
   attachment?: CommentAttachment
   createdTime: string
 }
+
+export interface ReplyResponse {
+  id: string
+  commentId: string
+  pageId: string
+}
+
+export interface CommentRepliedPayload {
+  commentId: string
+  pageId: string
+  reply: CommentReply
+}

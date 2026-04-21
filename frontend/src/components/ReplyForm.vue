@@ -9,10 +9,16 @@ interface Emits {
   (e: 'cancel'): void
 }
 
+interface Props {
+  isLoading?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  isLoading: false,
+})
 const emit = defineEmits<Emits>()
 
 const message = ref('')
-const isSubmitting = ref(false)
 const textareaRef = ref<InstanceType<typeof Textarea> | null>(null)
 
 onMounted(() => {
@@ -21,15 +27,10 @@ onMounted(() => {
   }
 })
 
-async function handleSubmit(): Promise<void> {
-  if (!message.value.trim()) return
-  isSubmitting.value = true
-  try {
-    emit('submit', message.value.trim())
-    message.value = ''
-  } finally {
-    isSubmitting.value = false
-  }
+function handleSubmit(): void {
+  if (props.isLoading || !message.value.trim()) return
+  emit('submit', message.value.trim())
+  message.value = ''
 }
 
 function handleCancel(): void {
@@ -53,6 +54,7 @@ function handleKeydown(event: KeyboardEvent): void {
       v-model="message"
       placeholder="Nhập nội dung phản hồi... (Enter để gửi, Shift+Enter để xuống dòng)"
       class="resize-none text-sm min-h-[80px] border-indigo-200 focus-visible:ring-indigo-400 bg-white"
+      :disabled="props.isLoading"
       @keydown="handleKeydown"
     />
     <div class="flex items-center justify-between">
@@ -65,7 +67,7 @@ function handleKeydown(event: KeyboardEvent): void {
           variant="ghost"
           size="sm"
           class="h-8 px-3 text-xs text-slate-500 hover:text-slate-700"
-          :disabled="isSubmitting"
+          :disabled="props.isLoading"
           @click="handleCancel"
         >
           <XIcon class="h-3.5 w-3.5 mr-1" />
@@ -75,11 +77,11 @@ function handleKeydown(event: KeyboardEvent): void {
           id="reply-submit-btn"
           size="sm"
           class="h-8 px-4 text-xs bg-indigo-500 hover:bg-indigo-600 text-white"
-          :disabled="isSubmitting || !message.trim()"
+          :disabled="props.isLoading || !message.trim()"
           @click="handleSubmit"
         >
           <SendHorizontalIcon class="h-3.5 w-3.5 mr-1.5" />
-          {{ isSubmitting ? 'Đang gửi...' : 'Gửi phản hồi' }}
+          {{ props.isLoading ? 'Đang gửi...' : 'Gửi phản hồi' }}
         </Button>
       </div>
     </div>

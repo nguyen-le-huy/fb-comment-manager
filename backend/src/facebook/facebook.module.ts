@@ -9,6 +9,7 @@ import { PagesService } from './pages/pages.service';
 import { PagesController } from './pages/pages.controller';
 import { FacebookPage, FacebookPageSchema } from '../schemas/facebook-page.schema';
 import { CommentState, CommentStateSchema } from '../schemas/comment-state.schema';
+import { GatewayModule } from '../gateway/gateway.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { CommentState, CommentStateSchema } from '../schemas/comment-state.schem
       { name: FacebookPage.name, schema: FacebookPageSchema },
       { name: CommentState.name, schema: CommentStateSchema },
     ]),
+    GatewayModule,
   ],
   controllers: [PostsController, CommentsController, PagesController],
   providers: [GraphApiService, PostsService, CommentsService, PagesService],

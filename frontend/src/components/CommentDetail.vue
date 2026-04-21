@@ -21,6 +21,7 @@ const emit = defineEmits<Emits>()
 const inboxStore = useInboxStore()
 const { replyComment, markAsRead } = useInboxComments()
 const showReplyForm = ref(false)
+const isReplying = ref(false)
 
 
 const comment = computed(() => inboxStore.selectedComment)
@@ -30,9 +31,15 @@ watch(() => comment.value?.commentId, () => {
 })
 
 async function handleReplySubmit(message: string): Promise<void> {
-  if (!comment.value) return
-  await replyComment(comment.value.commentId, message)
-  showReplyForm.value = false
+  if (!comment.value || isReplying.value) return
+
+  isReplying.value = true
+  try {
+    await replyComment(comment.value.commentId, comment.value.pageId, message)
+    showReplyForm.value = false
+  } finally {
+    isReplying.value = false
+  }
 }
 
 async function handleMarkRead(): Promise<void> {
@@ -287,6 +294,7 @@ const hasCommentText = computed(() => {
         <ReplyForm
           v-else
           :key="comment.commentId"
+          :is-loading="isReplying"
           @submit="handleReplySubmit"
           @cancel="showReplyForm = false"
         />

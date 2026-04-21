@@ -2,12 +2,12 @@ import { ref, type Ref } from 'vue'
 import { useToast } from '@/lib/toast'
 import { useInboxStore } from '@/stores/inbox.store'
 import { apiService } from '@/services/api.service'
-import type { Comment, CommentReply } from '@/types/comment.types'
+import type { Comment, CommentReply, ReplyResponse } from '@/types/comment.types'
 
 interface UseInboxCommentsResult {
   isLoading: Ref<boolean>
   fetchComments: () => Promise<void>
-  replyComment: (commentId: string, message: string) => Promise<void>
+  replyComment: (commentId: string, pageId: string, message: string) => Promise<void>
   markAsRead: (commentId: string) => Promise<void>
 }
 
@@ -32,17 +32,18 @@ export function useInboxComments(): UseInboxCommentsResult {
     }
   }
 
-  async function replyComment(commentId: string, message: string): Promise<void> {
+  async function replyComment(commentId: string, pageId: string, message: string): Promise<void> {
     try {
-      // TODO: Replace with actual API call
-      // await apiService.post(`/comments/${commentId}/reply`, { message })
+      const response = await apiService.post<ReplyResponse>(
+        `/facebook/comments/${pageId}/${commentId}/reply`,
+        { message },
+      )
 
       const newReply: CommentReply = {
-        replyId: `reply_${Date.now()}`,
+        replyId: response.id,
         author: {
-          id: 'admin_1',
-          name: 'Admin Shop',
-          avatar: 'https://i.pravatar.cc/150?img=2',
+          id: pageId,
+          name: 'Admin',
         },
         message,
         createdTime: new Date().toISOString(),

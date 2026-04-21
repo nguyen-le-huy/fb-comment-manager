@@ -7,6 +7,7 @@ import {
   CommentState,
   CommentStateDocument,
 } from '../../schemas/comment-state.schema';
+import { FbEventsGateway } from '../../gateway/fb-events.gateway';
 import { InboxCommentDto } from './dto/inbox-comment.dto';
 
 interface InboxCommentAttachment {
@@ -98,6 +99,7 @@ export class CommentsService {
     @InjectModel(CommentState.name)
     private readonly commentStateModel: Model<CommentStateDocument>,
     private readonly graphApiService: GraphApiService,
+    private readonly fbEventsGateway: FbEventsGateway,
   ) {}
 
   async getComments(
@@ -324,18 +326,42 @@ export class CommentsService {
     pageId: string,
     commentId: string,
     message: string,
-  ): Promise<{ id: string }> {
+  ): Promise<{ id: string; commentId: string; pageId: string }> {
     this.logger.log('Replying to comment', { pageId, commentId });
 
     const page = await this.pageModel
       .findOne({ pageId })
-      .select('pageAccessToken')
+      .select('pageAccessToken pageName')
       .lean();
 
     if (!page) {
       throw new NotFoundException(`Page ${pageId} not found`);
     }
 
-    return this.graphApiService.replyToComment(commentId, message, page.pageAccessToken);
+    const reply = await this.graphApiService.replyToComment(
+      commentId,
+      message,
+      page.pageAccessToken,
+    );
+
+    this.fbEventsGateway.emitCommentReplied({
+      commentId,
+      pageId,
+      reply: {
+        replyId: reply.id,
+        author: {
+          id: pageId,
+          name: page.pageName,
+        },
+        message,
+        createdTime: new Date().toISOString(),
+      },
+    });
+
+    return {
+      id: reply.id,
+      commentId,
+      pageId,
+    };
   }
 }

@@ -52,9 +52,15 @@ export const useInboxStore = defineStore('inbox', () => {
 
   function updateCommentReplies(commentId: string, newReply: CommentReply): void {
     const comment = comments.value.find(c => c.commentId === commentId)
-    if (comment) {
-      comment.replies.push(newReply)
+    if (!comment) return
+
+    const existingIndex = comment.replies.findIndex(reply => reply.replyId === newReply.replyId)
+    if (existingIndex !== -1) {
+      comment.replies[existingIndex] = { ...comment.replies[existingIndex], ...newReply }
+      return
     }
+
+    comment.replies.push(newReply)
   }
 
   function clearSelection(): void {

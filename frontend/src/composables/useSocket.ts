@@ -5,6 +5,7 @@ import { ENV } from '@/config/env'
 import { apiService } from '@/services/api.service'
 import type {
   Comment,
+  CommentRepliedPayload,
   NewCommentPayload,
   FacebookPage,
   SourcePost,
@@ -86,6 +87,28 @@ function isLegacyNewCommentPayload(payload: unknown): payload is LegacyNewCommen
     typeof candidate.message === 'string' &&
     typeof candidate.createdTime === 'string' &&
     typeof candidate.fromName === 'string'
+  )
+}
+
+function isCommentRepliedPayload(payload: unknown): payload is CommentRepliedPayload {
+  if (!payload || typeof payload !== 'object') {
+    return false
+  }
+
+  const candidate = payload as Record<string, unknown>
+  const reply = candidate.reply as Record<string, unknown> | undefined
+  const author = reply?.author as Record<string, unknown> | undefined
+
+  return (
+    typeof candidate.commentId === 'string' &&
+    typeof candidate.pageId === 'string' &&
+    !!reply &&
+    typeof reply.replyId === 'string' &&
+    typeof reply.message === 'string' &&
+    typeof reply.createdTime === 'string' &&
+    !!author &&
+    typeof author.id === 'string' &&
+    typeof author.name === 'string'
   )
 }
 
@@ -259,6 +282,29 @@ export function useSocket(): void {
 
     socket.on('comment:read', (payload: CommentReadPayload) => {
       inboxStore.markCommentAsRead(payload.commentId)
+    })
+
+    socket.on('comment:replied', (payload: unknown) => {
+      if (!isCommentRepliedPayload(payload)) {
+        return
+      }
+
+      const currentComment = inboxStore.comments.find((comment) => comment.commentId === payload.commentId)
+      if (!currentComment) {
+        return
+      }
+
+      const alreadyExists = currentComment.replies.some((reply) => reply.replyId === payload.reply.replyId)
+      if (alreadyExists) {
+        return
+      }
+
+      inboxStore.updateCommentReplies(payload.commentId, {
+        replyId: payload.reply.replyId,
+        author: payload.reply.author,
+        message: payload.reply.message,
+        createdTime: payload.reply.createdTime,
+      })
     })
   })
 
