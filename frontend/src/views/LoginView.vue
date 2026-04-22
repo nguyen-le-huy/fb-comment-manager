@@ -180,6 +180,12 @@ function handleLogin(): void {
           <span>Don't have any acount? </span>
           <a href="#" class="font-bold text-blue-600 hover:underline">Register</a>
         </div>
+
+        <!-- Footer Links for FB Policy -->
+        <div class="flex justify-center gap-4 pt-4 text-[14px] text-slate-400">
+          <router-link :to="{ name: 'Privacy' }" class="hover:text-slate-600 underline">Privacy Policy</router-link>
+          <router-link :to="{ name: 'Terms' }" class="hover:text-slate-600 underline">Terms of Service</router-link>
+        </div>
       </div>
     </div>
   </div>

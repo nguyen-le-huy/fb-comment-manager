@@ -42,6 +42,18 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/CommentsView.vue'),
     meta: { requiresAuth: true },
   },
+  {
+    path: '/privacy',
+    name: 'Privacy',
+    component: () => import('@/views/PrivacyView.vue'),
+    meta: { requiresAuth: false },
+  },
+  {
+    path: '/terms',
+    name: 'Terms',
+    component: () => import('@/views/TermsView.vue'),
+    meta: { requiresAuth: false },
+  },
 ]
 
 const router = createRouter({
