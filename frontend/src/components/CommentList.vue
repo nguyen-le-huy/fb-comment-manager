@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
 import { useInboxStore } from '@/stores/inbox.store'
 import { useInboxFiltersStore } from '@/stores/inbox-filters.store'
 import { useInboxComments } from '@/composables/useInboxComments'
 import CommentListItem from './CommentListItem.vue'
-import { SearchIcon, SlidersHorizontalIcon, ArrowUpDownIcon, MessageSquareOffIcon } from 'lucide-vue-next'
+import { SearchIcon, SlidersHorizontalIcon, ArrowUpDownIcon, MessageSquareOffIcon, Loader2Icon } from 'lucide-vue-next'
 
 interface Props {
   isLoading: boolean
@@ -198,23 +197,9 @@ const filterLabel = computed(() => {
     <!-- Comments List -->
     <div class="flex-1 overflow-y-auto">
       <!-- Loading State -->
-      <div v-if="isLoading" class="space-y-0 divide-y divide-slate-100">
-        <div
-          v-for="i in 6"
-          :key="i"
-          class="flex gap-3 px-4 py-3.5"
-        >
-          <Skeleton class="h-9 w-9 rounded-full shrink-0" />
-          <div class="flex-1 space-y-2">
-            <div class="flex justify-between">
-              <Skeleton class="h-3.5 w-28" />
-              <Skeleton class="h-3 w-12" />
-            </div>
-            <Skeleton class="h-3 w-20" />
-            <Skeleton class="h-3 w-full" />
-            <Skeleton class="h-3 w-3/4" />
-          </div>
-        </div>
+      <div v-if="isLoading" class="flex flex-col items-center justify-center h-full py-16 text-center">
+        <Loader2Icon class="h-8 w-8 text-indigo-500 animate-spin mb-4" />
+        <p class="text-sm font-medium text-slate-500">Đang tải bình luận...</p>
       </div>
 
       <!-- Empty State -->

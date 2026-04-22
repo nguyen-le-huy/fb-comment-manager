@@ -53,6 +53,20 @@ class InboxCommentAttachmentDto {
   description?: string;
 }
 
+export class InboxCommentReplyDto {
+  @ApiProperty({ example: '9988776655443322_1234567890' })
+  replyId!: string;
+
+  @ApiProperty({ type: InboxCommentAuthorDto })
+  author!: InboxCommentAuthorDto;
+
+  @ApiProperty({ example: 'This is a reply message.' })
+  message!: string;
+
+  @ApiProperty({ example: '2026-04-21T08:20:30.000Z' })
+  createdTime!: string;
+}
+
 export class InboxCommentDto {
   @ApiProperty({ example: '9988776655443322' })
   commentId!: string;
@@ -87,6 +101,6 @@ export class InboxCommentDto {
   @ApiProperty({ required: false, nullable: true })
   readAt?: string | null;
 
-  @ApiProperty({ type: [String], example: [] })
-  replies!: string[];
+  @ApiProperty({ type: [InboxCommentReplyDto], example: [] })
+  replies!: InboxCommentReplyDto[];
 }

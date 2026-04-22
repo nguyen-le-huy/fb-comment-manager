@@ -93,6 +93,16 @@ export class CommentsService {
     };
   }
 
+  private getAvatarUrl(id?: string, pictureUrl?: string): string | undefined {
+    if (pictureUrl) {
+      return pictureUrl;
+    }
+    if (!id) {
+      return undefined;
+    }
+    return `https://graph.facebook.com/${id}/picture?type=small`;
+  }
+
   constructor(
     @InjectModel(FacebookPage.name)
     private readonly pageModel: Model<FacebookPageDocument>,
@@ -278,15 +288,31 @@ export class CommentsService {
     // Return ALL candidates (seen + unseen), merging isRead state from DB
     const result = candidates.map((candidate): InboxCommentDto => {
       const state = existingCommentStateMap.get(candidate.comment.id);
-      const pageLogo =
-        candidate.page.pageAvatar ??
-        `https://graph.facebook.com/${candidate.page.pageId}/picture?type=small`;
-      const authorAvatar =
-        candidate.comment.from?.picture?.data?.url ??
-        (candidate.comment.from?.id
-          ? `https://graph.facebook.com/${candidate.comment.from.id}/picture?type=small`
-          : undefined);
+      const pageLogo = this.getAvatarUrl(candidate.page.pageId, candidate.page.pageAvatar);
+      const authorAvatar = this.getAvatarUrl(
+        candidate.comment.from?.id,
+        candidate.comment.from?.picture?.data?.url,
+      );
       const attachment = this.mapAttachment(candidate.comment);
+      const replies = (candidate.comment.comments?.data ?? []).map(
+        (reply): InboxCommentDto['replies'][number] => {
+          const replyAuthorAvatar = this.getAvatarUrl(
+            reply.from?.id,
+            reply.from?.picture?.data?.url,
+          );
+
+          return {
+            replyId: reply.id,
+            author: {
+              id: reply.from?.id ?? '',
+              name: reply.from?.name ?? 'Unknown',
+              avatar: replyAuthorAvatar,
+            },
+            message: reply.message ?? '',
+            createdTime: new Date(reply.created_time).toISOString(),
+          };
+        },
+      );
 
       return {
         commentId: candidate.comment.id,
@@ -313,7 +339,7 @@ export class CommentsService {
         createdTime: new Date(candidate.comment.created_time).toISOString(),
         isRead: state?.isRead ?? false,
         readAt: state?.readAt ? state.readAt.toISOString() : null,
-        replies: [],
+        replies,
       };
     });
 

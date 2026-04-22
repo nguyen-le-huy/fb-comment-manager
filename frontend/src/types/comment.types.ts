@@ -38,7 +38,7 @@ export interface Comment {
   attachment?: CommentAttachment
   createdTime: string
   isRead: boolean
-  readAt?: string
+  readAt?: string | null
   replies: CommentReply[]
 }
 

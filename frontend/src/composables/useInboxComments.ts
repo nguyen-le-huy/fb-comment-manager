@@ -39,11 +39,14 @@ export function useInboxComments(): UseInboxCommentsResult {
         { message },
       )
 
+      const currentComment = inboxStore.comments.find((comment) => comment.commentId === commentId)
+
       const newReply: CommentReply = {
         replyId: response.id,
         author: {
           id: pageId,
-          name: 'Admin',
+          name: currentComment?.page.name ?? 'Admin',
+          avatar: currentComment?.page.logo,
         },
         message,
         createdTime: new Date().toISOString(),

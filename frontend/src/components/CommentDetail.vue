@@ -67,6 +67,10 @@ const avatarFallback = computed(() => {
   return comment.value?.author.name.charAt(0).toUpperCase() ?? '?'
 })
 
+function getReplyInitial(name?: string): string {
+  return name?.charAt(0).toUpperCase() ?? '?'
+}
+
 const hasCommentText = computed(() => {
   return Boolean(comment.value?.message.trim())
 })
@@ -251,7 +255,7 @@ const hasCommentText = computed(() => {
                 v-else
                 class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-600 text-xs font-semibold ring-2 ring-white shadow-sm"
               >
-                {{ reply.author.name.charAt(0).toUpperCase() }}
+                {{ getReplyInitial(reply.author.name) }}
               </span>
               <div class="flex-1 min-w-0">
                 <div class="flex items-baseline gap-2 mb-1">

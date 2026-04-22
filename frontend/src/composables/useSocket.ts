@@ -261,6 +261,10 @@ export function useSocket(): void {
   let socket: Socket | null = null
 
   onMounted(() => {
+    if (import.meta.env.MODE !== 'production') {
+      return
+    }
+
     socket = io(getSocketBaseUrl(), {
       path: '/socket.io',
       transports: ['websocket', 'polling'],
@@ -305,6 +309,12 @@ export function useSocket(): void {
         message: payload.reply.message,
         createdTime: payload.reply.createdTime,
       })
+
+      const isCustomer = payload.reply.author.id !== payload.pageId
+      if (isCustomer) {
+        inboxStore.markCommentAsUnread(payload.commentId)
+        inboxStore.moveCommentToTop(payload.commentId)
+      }
     })
   })
 

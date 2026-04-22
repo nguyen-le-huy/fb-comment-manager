@@ -16,6 +16,7 @@ interface WebhookEntry {
       verb?: string;
       comment_id?: string;
       post_id?: string;
+      parent_id?: string;
       from?: { id: string; name: string };
       message?: string;
       created_time?: number;
@@ -74,8 +75,11 @@ export class WebhookService {
   ): Promise<void> {
     const commentId = value.comment_id;
     const postId = value.post_id;
+    const parentCommentId = value.parent_id;
 
     if (!commentId || !postId) return;
+
+    const isReply = !!parentCommentId && parentCommentId !== postId;
 
     try {
       const page = await this.pageModel
@@ -96,6 +100,42 @@ export class WebhookService {
       const createdTime = value.created_time
         ? new Date(value.created_time * 1000)
         : new Date();
+      const isAdmin = comment.from?.id === pageId;
+
+      if (isReply) {
+        if (!parentCommentId) {
+          this.logger.warn('Missing parent_id for reply comment ' + commentId);
+          return;
+        }
+
+        if (!isAdmin) {
+          await this.commentStateModel.updateOne(
+            { commentId: parentCommentId },
+            {
+              $set: {
+                isRead: false,
+                readAt: null,
+              },
+            },
+          );
+        }
+
+        this.fbEventsGateway.emitCommentReplied({
+          commentId: parentCommentId,
+          pageId,
+          reply: {
+            replyId: commentId,
+            author: {
+              id: comment.from?.id ?? '',
+              name: comment.from?.name ?? 'Unknown',
+            },
+            message: comment.message ?? '',
+            createdTime: createdTime.toISOString(),
+          },
+        });
+
+        return;
+      }
 
       await this.commentStateModel.findOneAndUpdate(
         { commentId },
@@ -108,8 +148,8 @@ export class WebhookService {
             fromName: comment.from?.name,
             message: comment.message,
             createdTime,
-            isRead: false,
-            readAt: null,
+            isRead: isAdmin,
+            readAt: isAdmin ? createdTime : null,
           },
         },
         { upsert: true },

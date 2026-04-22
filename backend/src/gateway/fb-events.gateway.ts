@@ -75,16 +75,19 @@ export class FbEventsGateway
     };
     createdTime: string;
   }): void {
+    if (this.configService.get<string>('NODE_ENV') !== 'production') return;
     this.logger.log('Emitting comment:new for post ' + payload.postId);
     this.server.emit('comment:new', payload);
   }
 
   emitCommentRead(payload: { postId: string; commentId: string }): void {
+    if (this.configService.get<string>('NODE_ENV') !== 'production') return;
     this.logger.log('Emitting comment:read for comment ' + payload.commentId);
     this.server.emit('comment:read', payload);
   }
 
   emitCommentReplied(payload: CommentRepliedPayload): void {
+    if (this.configService.get<string>('NODE_ENV') !== 'production') return;
     this.logger.log('Emitting comment:replied for comment ' + payload.commentId);
     this.server.emit('comment:replied', payload);
   }

@@ -50,6 +50,29 @@ export const useInboxStore = defineStore('inbox', () => {
     }
   }
 
+  function markCommentAsUnread(commentId: string): void {
+    const comment = comments.value.find(c => c.commentId === commentId)
+    if (comment) {
+      comment.isRead = false
+      comment.readAt = null
+      updateUnreadCounts()
+    }
+  }
+
+  function moveCommentToTop(commentId: string): void {
+    const commentIndex = comments.value.findIndex(comment => comment.commentId === commentId)
+    if (commentIndex <= 0) {
+      return
+    }
+
+    const [comment] = comments.value.splice(commentIndex, 1)
+    if (!comment) {
+      return
+    }
+
+    comments.value.unshift(comment)
+  }
+
   function updateCommentReplies(commentId: string, newReply: CommentReply): void {
     const comment = comments.value.find(c => c.commentId === commentId)
     if (!comment) return
@@ -78,6 +101,8 @@ export const useInboxStore = defineStore('inbox', () => {
     addCommentToTop,
     selectComment,
     markCommentAsRead,
+    markCommentAsUnread,
+    moveCommentToTop,
     updateCommentReplies,
     clearSelection,
   }
