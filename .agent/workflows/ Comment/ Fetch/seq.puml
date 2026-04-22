@@ -1,0 +1,189 @@
+@startuml Fetch Comments — Inbox Flow
+skinparam backgroundColor #FFFFFF
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 220
+skinparam BoxPadding 10
+skinparam ParticipantBackgroundColor #F0F4FF
+skinparam ParticipantBorderColor #4A6FA5
+skinparam ActorBackgroundColor #F0F4FF
+skinparam ActorBorderColor #4A6FA5
+skinparam SequenceBoxBackgroundColor #F8F9FF
+skinparam SequenceBoxBorderColor #AABBCC
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam sequenceArrowColor #333333
+skinparam sequenceArrowThickness 1
+skinparam defaultFontColor #111111
+
+title Fetch Comments — Inbox Flow
+
+actor "Admin" as Admin
+
+box "Frontend (Vue 3)" #E3EAFF
+  participant "AllCommentsView" as AllView
+  participant "InboxLayout\n(component)" as Layout
+  participant "useInboxComments\n(composable)" as UseInbox
+  participant "usePages\n(composable)" as UsePages
+  participant "useSocket\n(composable)" as UseSocket
+  participant "api.service\n(Axios)" as ApiSvc
+  participant "authStore\n(Pinia)" as AuthStore
+  participant "inboxStore\n(Pinia)" as InboxStore
+  participant "CommentList\n(component)" as CommentList
+  participant "InboxSidebar\n(component)" as Sidebar
+end box
+
+box "Backend (NestJS)" #E8F5E9
+  participant "CommentsController" as CommentsCtrl
+  participant "JwtStrategy\n(Passport)" as JwtStrat
+  participant "CommentsService" as CommentsSvc
+  participant "PagesController" as PagesCtrl
+  participant "PagesService" as PagesSvc
+  participant "GraphApiService\n(Axios → FB)" as GraphApi
+end box
+
+box "External" #FFF3E0
+  participant "Facebook\nGraph API v21.0" as Facebook
+  database "MongoDB Atlas\n(facebook_pages /\ncomment_states)" as DB
+end box
+
+== KHỞI TẠO INBOXLAYOUT (onMounted) ==
+
+Admin -> AllView : Truy cập /comments
+AllView -> Layout : Render <InboxLayout />
+
+Layout -> UseInbox : useInboxComments()\n→ { fetchComments, isLoading }
+Layout -> UseSocket : useSocket()\n→ socket.io connect + register listeners
+note right of UseSocket
+  Kết nối socket.io đến\ngetSocketBaseUrl() = origin(ENV.API_URL)
+  Đăng ký socket.on('comment:new')\nvà socket.on('comment:read')
+end note
+
+Layout -> Layout : onMounted()\n→ void fetchComments()
+
+== FETCHING PAGES (song song với fetchComments) ==
+
+note over AllView, Sidebar
+  AllCommentsView KHÔNG trực tiếp fetch pages.
+  InboxSidebar nhận props { pages, isPagesLoading } từ parent.
+  Thực tế hiện tại InboxLayout KHÔNG gọi usePages() — InboxSidebar chưa có pages.
+  (Thiếu: cần AllCommentsView hoặc InboxLayout gọi usePages + truyền props)
+end note
+
+== FETCH COMMENTS: Frontend → Backend ==
+
+UseInbox -> UseInbox : isLoading.value = true
+UseInbox -> ApiSvc : apiService.get<Comment[]>\n('/facebook/comments/inbox',\n{ params: { limit: 20 } })
+
+ApiSvc -> AuthStore : request interceptor\nĐọc token.value
+AuthStore --> ApiSvc : Bearer <jwt>
+
+ApiSvc -> CommentsCtrl : GET /api/facebook/comments/inbox?limit=20\nAuthorization: Bearer <jwt>
+
+CommentsCtrl -> JwtStrat : JwtAuthGuard validate
+JwtStrat -> DB : findById(payload.sub)\n.select('_id facebookId name email avatar').lean()
+DB --> JwtStrat : UserProjection
+JwtStrat --> CommentsCtrl : req.user = AuthUser { userId, id, ... }
+
+CommentsCtrl -> CommentsSvc : getInboxComments(user.userId, 20)
+
+== BACKEND: getInboxComments() ==
+
+CommentsSvc -> DB : pageModel.find({ userId })\n.select('pageId pageName pageAccessToken pageAvatar')\n.lean<InboxPageProjection[]>()
+DB --> CommentsSvc : pages[] (danh sách fanpage của user)
+
+alt pages.length === 0
+  CommentsSvc --> CommentsCtrl : []
+  CommentsCtrl --> ApiSvc : 200 []
+end
+
+CommentsSvc -> CommentsSvc : Promise.allSettled(\n  pages.map(page => fetchPageCandidates(page))\n)
+note right of CommentsSvc
+  Mỗi page chạy song song (Promise.allSettled).
+  Nếu một page lỗi → warn + bỏ qua, không ảnh hưởng page khác.
+end note
+
+loop song song — mỗi Fanpage
+  CommentsSvc -> GraphApi : getPagePosts(pageId, pageAccessToken, limit=5)
+  GraphApi -> Facebook : GET /v21.0/{pageId}/posts\n?fields=id,message,story,permalink_url,\nfull_picture,created_time,comments.summary(true)\n&limit=5&access_token=<pageToken>
+  Facebook --> GraphApi : FbPostsResponse { data: FbPost[] }
+  GraphApi --> CommentsSvc : FbPost[] (tối đa 5 bài)
+
+  CommentsSvc -> CommentsSvc : runInBatches(postTasks, batchSize=3)\n→ tối đa 3 post song song một lần
+
+  loop theo batch 3 posts
+    CommentsSvc -> GraphApi : getPostComments(postId, pageAccessToken, limit=20)
+    GraphApi -> Facebook : GET /v21.0/{postId}/comments\n?fields=id,from{id,name,picture{url}},\nmessage,created_time,attachment{...},\ncomments{...}\n&limit=20&access_token=<pageToken>
+    Facebook --> GraphApi : FbCommentsResponse { data: FbComment[] }
+    GraphApi --> CommentsSvc : FbComment[] (tối đa 20 comments/post)
+  end
+
+  CommentsSvc -> CommentsSvc : Flatten FbComment[] → InboxCommentCandidate[]\nSort by created_time DESC\nSlice(0, perPageLimit)
+end
+
+CommentsSvc -> CommentsSvc : pageCandidates.flat()\n→ candidates: InboxCommentCandidate[]
+
+alt candidates.length === 0
+  CommentsSvc --> CommentsCtrl : []
+  CommentsCtrl --> ApiSvc : 200 []
+end
+
+== MERGE VỚI COMMENT_STATE (isRead) ==
+
+CommentsSvc -> DB : commentStateModel\n.find({ commentId: { $in: commentIds } })\n.select('commentId isRead readAt')\n.lean<{ commentId, isRead, readAt }[]>()
+DB --> CommentsSvc : existingStates[]
+CommentsSvc -> CommentsSvc : Build existingCommentStateMap\nMap<commentId → { isRead, readAt }>
+
+== UPSERT UNSEEN COMMENTS ==
+
+CommentsSvc -> CommentsSvc : unseenCandidates =\ncandidates.filter(\n  c => !existingCommentStateMap.has(c.comment.id)\n)
+
+alt unseenCandidates.length > 0
+  CommentsSvc -> DB : commentStateModel.bulkWrite(\n  unseenCandidates.map → updateOne $setOnInsert\n  { pageId, postId, commentId, fromId, fromName,\n    message, createdTime, isRead: false, readAt: null }\n  upsert: true\n)\nOptions: { ordered: false }
+  DB --> CommentsSvc : BulkWriteResult
+end
+
+== MAP → InboxCommentDto[] ==
+
+CommentsSvc -> CommentsSvc : candidates.map(candidate → InboxCommentDto)\n• commentId = comment.id\n• author: { id, name, avatar }\n• page: { id, name, logo }\n• post: { id, content, permalink, picture }\n• message, attachment, createdTime\n• isRead = existingCommentStateMap.get(id)?.isRead ?? false\n• readAt = existingCommentStateMap.get(id)?.readAt ?? null\n• replies: []
+
+CommentsSvc -> CommentsSvc : result.sort(\n  (a,b) => createdTime DESC\n)
+
+CommentsSvc --> CommentsCtrl : InboxCommentDto[]
+CommentsCtrl --> ApiSvc : 200 InboxCommentDto[]
+
+== FRONTEND: Nhận dữ liệu & Render ==
+
+ApiSvc --> UseInbox : InboxCommentDto[] (response.data via interceptor)
+UseInbox -> InboxStore : inboxStore.setComments(data)
+InboxStore -> InboxStore : comments.value = data\nupdateUnreadCounts():\n• unreadCount = filter(!isRead).length\n• pageUnreadCounts = { [pageId]: count, ... }
+UseInbox -> UseInbox : isLoading.value = false (finally)
+
+UseInbox --> Layout : isLoading = false
+
+Layout -> CommentList : :is-loading="isLoading"\n(isLoading false → danh sách render)
+
+CommentList -> InboxStore : Đọc inboxStore.comments
+InboxStore --> CommentList : Comment[]
+CommentList -> CommentList : filteredComments (computed):\n• Filter by status (all/unread/read)\n• Filter by pageId\n• Filter by searchInput\n• Filter by timeRange (today/7days/30days)\n• Sort by createdTime (newest/oldest)
+CommentList --> Admin : Render danh sách CommentListItem
+
+Sidebar -> InboxStore : Đọc pageUnreadCounts, unreadCount
+InboxStore --> Sidebar : { [pageId]: number }
+Sidebar --> Admin : Hiển thị badge số unread theo từng Fanpage
+
+== ERROR HANDLING ==
+
+alt Bất kỳ lỗi nào trong fetchComments()
+  UseInbox -> UseInbox : catch block:\ntoast({ title: 'Lỗi',\n  description: 'Không thể tải danh sách bình luận.',\n  variant: 'destructive' })
+  UseInbox -> UseInbox : finally: isLoading.value = false
+  CommentList --> Admin : Hiển thị skeleton → rồi empty state
+end
+
+alt Lỗi 401 (JWT hết hạn)
+  ApiSvc -> ApiSvc : response interceptor catch 401
+  ApiSvc -> AuthStore : clearAuth()\ntoken = null, localStorage.removeItem('auth_token')
+  ApiSvc -> AllView : router.push({ name: 'Login' })
+end
+
+@enduml

@@ -1,0 +1,188 @@
+@startuml Auth Flow — FB Comment Manager
+skinparam backgroundColor #FFFFFF
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 200
+skinparam BoxPadding 10
+skinparam ParticipantBackgroundColor #F0F4FF
+skinparam ParticipantBorderColor #4A6FA5
+skinparam ActorBackgroundColor #F0F4FF
+skinparam ActorBorderColor #4A6FA5
+skinparam SequenceBoxBackgroundColor #F8F9FF
+skinparam SequenceBoxBorderColor #AABBCC
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam sequenceArrowColor #333333
+skinparam sequenceArrowThickness 1
+skinparam defaultFontColor #111111
+
+title Authentication Flow — FB Comment Manager
+
+actor       "Admin"             as Admin
+box "Frontend (Vue 3)" #E3EAFF
+  participant "LoginView"           as LoginView
+  participant "AuthCallbackView"    as Callback
+  participant "AllCommentsView"     as AllComments
+  participant "authStore (Pinia)"   as AuthStore
+  participant "api.service (Axios)" as ApiService
+  participant "router guard\n(beforeEach)" as Guard
+end box
+
+box "Backend (NestJS)" #E8F5E9
+  participant "AuthController"      as AuthCtrl
+  participant "FacebookStrategy\n(Passport)" as FbStrategy
+  participant "AuthService"         as AuthSvc
+  participant "JwtStrategy\n(Passport)" as JwtStrategy
+  participant "GraphApiService"     as GraphApi
+end box
+
+box "External" #FFF3E0
+  participant "Facebook\nOAuth 2.0" as Facebook
+  database    "MongoDB Atlas\n(users / facebook_pages)" as DB
+end box
+
+== KHỞI TẠO LOGINVIEW ==
+
+Admin -> LoginView : Truy cập /login
+LoginView -> AuthStore : isAuthenticated?
+note right of LoginView
+  onMounted(): nếu đã đăng nhập
+  → router.replace({ name: 'AllComments' })
+end note
+alt isAuthenticated = true
+  LoginView -> Guard : router.replace({ name: 'AllComments' })
+  Guard --> Admin : Điều hướng tới /comments
+end
+
+== LOGIN FLOW ==
+
+Admin -> LoginView : Click "Continue with Facebook"
+LoginView -> LoginView : loginWithFacebook()\nwindow.location.href =\nENV.API_URL + '/auth/facebook'
+
+LoginView -> AuthCtrl : GET /api/auth/facebook
+AuthCtrl -> FbStrategy : AuthGuard('facebook') trigger
+FbStrategy --> Admin : 302 Redirect → Facebook OAuth consent screen
+
+Admin -> Facebook : Cấp quyền\n(email, pages_show_list,\npages_read_engagement,\npages_manage_engagement,\npages_manage_metadata)
+Facebook --> AuthCtrl : GET /api/auth/facebook/callback\n?code=<auth_code>
+
+AuthCtrl -> FbStrategy : AuthGuard('facebook') validate
+FbStrategy -> Facebook : Đổi code → User Access Token
+Facebook --> FbStrategy : { access_token, profile }
+
+FbStrategy -> AuthSvc : validateFacebookUser(profile, accessToken)
+
+AuthSvc -> DB : findOneAndUpdate(users)\n{ facebookId } upsert: true\n$set: { facebookId, name, email, avatar }
+DB --> AuthSvc : UserProjection (plain object, .lean())
+
+AuthSvc -> AuthSvc : syncUserPages(userId, userAccessToken)
+AuthSvc -> GraphApi : getManagedPages(userAccessToken)
+GraphApi -> Facebook : GET /me/accounts\n?fields=id,name,access_token,\ncategory,picture
+Facebook --> GraphApi : [{ id, name, access_token, category, picture }, ...]
+GraphApi --> AuthSvc : FacebookPageInfo[]
+
+loop tuần tự với mỗi Page (for...of)
+  AuthSvc -> DB : findOneAndUpdate(facebook_pages)\n{ pageId } upsert: true\n$set: { userId, pageId, pageName,\npageAccessToken, category, pageAvatar }
+  DB --> AuthSvc : FacebookPageDocument (_id)
+
+  AuthSvc -> GraphApi : subscribeAppToPage(pageId, pageAccessToken)
+  GraphApi -> Facebook : POST /{pageId}/subscribed_apps\nFields: feed (comments)
+  Facebook --> GraphApi : { success: true } hoặc lỗi
+  GraphApi --> AuthSvc : boolean (subscribed)
+  note right of AuthSvc
+    Nếu false → logger.warn(...)
+    Không ném exception — tiếp tục vòng lặp
+  end note
+end
+
+AuthSvc --> FbStrategy : AuthenticatedUser\n{ id, facebookId, name, email?, avatar? }
+FbStrategy --> AuthCtrl : done(null, user)\n→ req.user = AuthenticatedUser
+
+AuthCtrl -> AuthSvc : issueJwt(user) [đồng bộ]
+note right of AuthSvc
+  payload: { sub: user.id, facebookId }
+  → jwtService.sign(payload) [đồng bộ]
+end note
+AuthSvc --> AuthCtrl : { accessToken, user: AuthenticatedUser }
+
+AuthCtrl --> Callback : 302 Redirect →\nFRONTEND_URL/auth/callback\n?token=<jwt>&userId=<id>&name=<name>
+
+== OAUTH CALLBACK HANDLING ==
+
+Callback -> Callback : onMounted()\nĐọc route.query\nvia getQueryParam()\n{ token, userId, name }
+
+alt token && userId && name đều có giá trị
+  Callback -> AuthStore : setAuth({ id: userId, name }, token)
+  AuthStore -> AuthStore : user.value = { id, name }\ntoken.value = jwt\nlocalStorage.setItem('auth_token', jwt)
+  Callback -> Guard : router.replace({ name: 'AllComments' })
+  Guard --> AllComments : Điều hướng tới /comments
+else thiếu bất kỳ param nào
+  Callback -> Callback : toast({ title: 'Lỗi',\ndescription: 'Đăng nhập thất bại.', variant: 'destructive' })
+  Callback -> Guard : router.replace({ name: 'Login' })
+  Guard --> Admin : Về trang Login
+end
+
+== ROUTE GUARD (router.beforeEach) ==
+
+Admin -> Guard : Điều hướng đến route bất kỳ
+Guard -> AuthStore : authStore.isAuthenticated\n(computed: !!token.value)
+
+alt to.meta.requiresAuth = true && !isAuthenticated
+  Guard --> Admin : next({ name: 'Login' })\nChặn, về trang Login
+else to.name = 'Login' && isAuthenticated = true
+  Guard --> Admin : next({ name: 'AllComments' })\nChuyển thẳng vào app
+else
+  Guard --> Admin : next() — cho phép vào route
+end
+
+== GET CURRENT USER (/api/auth/me) ==
+
+Admin -> ApiService : [bất kỳ action có auth]
+ApiService -> AuthStore : Đọc token (request interceptor)
+AuthStore --> ApiService : Bearer <jwt>
+
+ApiService -> AuthCtrl : GET /api/auth/me\nAuthorization: Bearer <jwt>
+AuthCtrl -> JwtStrategy : JwtAuthGuard validate
+JwtStrategy -> JwtStrategy : ExtractJwt.fromAuthHeaderAsBearerToken()\nGiải mã JWT → payload: { sub, facebookId }
+JwtStrategy -> DB : findById(payload.sub)\n.select('_id facebookId name email avatar').lean()
+DB --> JwtStrategy : UserProjection | null
+alt user không tồn tại
+  JwtStrategy --> AuthCtrl : throw UnauthorizedException
+else user OK
+  JwtStrategy --> AuthCtrl : req.user = AuthUser\n{ userId, id, facebookId, name, email?, avatar? }
+end
+
+AuthCtrl -> AuthCtrl : @GetUser() lấy req.user\ntrả { id, name, email?, avatar? }
+AuthCtrl --> ApiService : 200 { id, name, email?, avatar? }
+ApiService --> Admin : MeResponse
+
+== 401 AUTO LOGOUT ==
+
+ApiService -> AuthCtrl : Request với JWT hết hạn
+AuthCtrl -> JwtStrategy : JwtAuthGuard validate → FAIL
+JwtStrategy --> AuthCtrl : UnauthorizedException
+AuthCtrl --> ApiService : 401 Unauthorized
+
+ApiService -> ApiService : response interceptor\ncatch 401 (Axios.isAxiosError)
+ApiService -> AuthStore : clearAuth()
+AuthStore -> AuthStore : user = null, token = null\nlocalStorage.removeItem('auth_token')
+ApiService -> Guard : router.push({ name: 'Login' })
+Guard --> Admin : Redirect sang LoginView
+
+== LOGOUT ==
+
+Admin -> ApiService : POST /api/auth/logout\nAuthorization: Bearer <jwt>
+note left of Admin
+  Gọi từ bất kỳ component nào
+  có nút Đăng xuất (e.g. InboxSidebar)
+end note
+ApiService -> AuthCtrl : POST /api/auth/logout
+AuthCtrl -> JwtStrategy : JwtAuthGuard validate → OK
+AuthCtrl --> ApiService : 200 { message: 'Logged out' }
+
+ApiService -> AuthStore : clearAuth()
+AuthStore -> AuthStore : user = null, token = null\nlocalStorage.removeItem('auth_token')
+ApiService -> Guard : router.push({ name: 'Login' })
+Guard --> Admin : Redirect sang LoginView
+
+@enduml
