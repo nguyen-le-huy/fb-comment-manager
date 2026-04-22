@@ -1,4 +1,4 @@
-  version: '3.8'
+version: '3.8'
 
 services:
   frontend:
@@ -7,7 +7,7 @@ services:
       target: production
     container_name: fb-comment-frontend-prod
     ports:
-      - "80:80"
+      - "5180:80"
     restart: always
 
   backend:
@@ -16,7 +16,7 @@ services:
       target: production
     container_name: fb-comment-backend-prod
     ports:
-      - "3000:3000"
+      - "3080:3000"
     env_file:
       - ./backend/.env.production
     environment:

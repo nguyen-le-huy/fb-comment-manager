@@ -185,6 +185,7 @@ function handleLogin(): void {
         <div class="flex justify-center gap-4 pt-4 text-[14px] text-slate-400">
           <router-link :to="{ name: 'Privacy' }" class="hover:text-slate-600 underline">Privacy Policy</router-link>
           <router-link :to="{ name: 'Terms' }" class="hover:text-slate-600 underline">Terms of Service</router-link>
+          <router-link :to="{ name: 'DataDeletion' }" class="hover:text-slate-600 underline">Data Deletion Instructions</router-link>
         </div>
       </div>
     </div>

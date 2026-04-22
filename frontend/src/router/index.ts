@@ -54,6 +54,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/TermsView.vue'),
     meta: { requiresAuth: false },
   },
+  {
+    path: '/data-deletion',
+    name: 'DataDeletion',
+    component: () => import('@/views/DataDeletionView.vue'),
+    meta: { requiresAuth: false },
+  },
 ]
 
 const router = createRouter({
